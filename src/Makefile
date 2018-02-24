@@ -35,16 +35,14 @@ else
 
 obj-m := fl2000.o
 
-#KERNEL_PATH = ../../../kernel/linux-3.10.0-327.13.1.el7
-#KERNEL_PATH = /usr/src/kernels/3.10.0-327.13.1.el7.x86_64
-#KERNEL_PATH = /usr/src/kernels/`uname -r`
-KERNEL_PATH = /usr/src/linux-headers-`uname -r`
+KSRC = /lib/modules/`uname -r`/build
+
 
 all:
-	make -C $(KERNEL_PATH) M=$(PWD) modules
+	make -C $(KSRC) M=$(PWD) modules
 
 clean:
-	make -C $(KERNEL_PATH) M=$(PWD) clean
+	make -C $(KSRC) M=$(PWD) clean
 	rm -f Module.symvers
 
 endif
