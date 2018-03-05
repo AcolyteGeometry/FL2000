@@ -10,22 +10,22 @@
 # NOTE: DO NOT SEND THIS FILE OUTSIDE OF FRESCO LOGIC.
 #
 
-fl2000-y := fl2000_module.o
-fl2000-y += fl2000_bulk.o
-fl2000-y += fl2000_ioctl.o
-fl2000-y += fl2000_render.o
-fl2000-y += fl2000_dev.o
-fl2000-y += fl2000_dongle.o
-fl2000-y += fl2000_big_table.o
-fl2000-y += fl2000_i2c.o
-fl2000-y += fl2000_register.o
-fl2000-y += fl2000_monitor.o
-fl2000-y += fl2000_desc.o
-fl2000-y += fl2000_interrupt.o
-fl2000-y += fl2000_compression.o
-fl2000-y += fl2000_surface.o
-fl2000-y += fl2000_fops.o
-fl2000-y += fl2000_hdmi.o
+fl2000-y := src/fl2000_module.o \
+	    src/fl2000_bulk.o \
+	    src/fl2000_ioctl.o \
+	    src/fl2000_render.o \
+	    src/fl2000_dev.o \
+	    src/fl2000_dongle.o \
+	    src/fl2000_big_table.o \
+	    src/fl2000_i2c.o \
+	    src/fl2000_register.o \
+	    src/fl2000_monitor.o \
+	    src/fl2000_desc.o \
+	    src/fl2000_interrupt.o \
+	    src/fl2000_compression.o \
+	    src/fl2000_surface.o \
+	    src/fl2000_fops.o \
+	    src/fl2000_hdmi.o \
 
 ifdef CONFIG_USB_FL2000
 
@@ -35,10 +35,11 @@ else
 
 obj-m := fl2000.o
 
-KSRC = /lib/modules/`uname -r`/build
+KSRC = /lib/modules/$(shell uname -r)/build
 
+all:	modules
 
-all:
+modules:
 	make -C $(KSRC) M=$(PWD) modules
 
 clean:
