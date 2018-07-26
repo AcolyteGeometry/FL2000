@@ -573,6 +573,7 @@ long fl2000_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	ret_val = -EINVAL;
 
 	dbg_msg(TRACE_LEVEL_VERBOSE, DBG_PNP, ">>>>");
+	dev_info(&dev_ctx->usb_dev->dev, "IOCTL %d\n", cmd);
 
 	if (dev_ctx == NULL) {
 		dbg_msg(TRACE_LEVEL_ERROR, DBG_PNP, "no dev_ctx?");
@@ -602,6 +603,7 @@ long fl2000_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 
 	case IOCTL_FL2000_NOTIFY_SURFACE_UPDATE:
+		dev_ctx->start_jiffies = get_jiffies_64();
 		ret_val = fl2000_ioctl_notify_surface_update(dev_ctx, arg);
 		break;
 

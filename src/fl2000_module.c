@@ -137,6 +137,7 @@ fl2000_device_probe(
 				"fl2000_dev_init failed?.");
 			goto exit;
 		}
+		fl2000_init_debugfs(dev_ctx);
 		break;
 
 	case FL2000_IFC_INTERRUPT:

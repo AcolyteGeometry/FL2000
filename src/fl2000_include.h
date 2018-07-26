@@ -66,6 +66,8 @@
 
 #include "fl2000_hdmi.h"
 
+#include "fl2000_debugfs.h"
+
 #endif // _FL2000_INCLUDE_H_
 
 // eof: fl2000_include.h

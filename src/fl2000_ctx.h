@@ -220,6 +220,9 @@ struct dev_ctx {
 	 * allocation management
 	 */
 	struct page * 			start_page;
+
+	atomic_t frame, framerate;
+	u64 start_jiffies;
 };
 
 #endif // _FL2000_CTX_H_

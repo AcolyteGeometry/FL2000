@@ -355,11 +355,10 @@ int fl2k_handle_damage(struct dev_ctx *fl2k,
 	u32 length;
 	uint8_t *buf = surface->render_buffer;
 	struct urb *urb;
-	unsigned long start_jiffies;
-	unsigned long end_jiffies;
 	int msec;
+	int frames;
+	int frame_rate;
 
-	start_jiffies = jiffies;
 
 #if 0	/* ULLI : this causes problems with logging via serial */
 	dev_info(&fl2k->usb_dev->dev, "fl2k handle damage for %d lines", height);
@@ -393,9 +392,13 @@ int fl2k_handle_damage(struct dev_ctx *fl2k,
 		return -1; /* lost_pixels is set */
 
 	fl2k_submit_urb(fl2k, urb, 0);
-
-	end_jiffies = jiffies;
-	msec =  jiffies_to_msecs(end_jiffies - start_jiffies);
+	atomic_inc(&fl2k->frame);
+	frames = atomic_read(&fl2k->frame);
+	frame_rate = frames * 1000 /
+		     jiffies_to_msecs(
+				get_jiffies_64() - fl2k->start_jiffies
+		     );
+	atomic_set(&fl2k->framerate, frame_rate);
 
 #if 0	/* : ULLI this causes problems with logging via serial */
 	dev_info(&fl2k->usb_dev->dev, "fl2k handle damage for %d lines msec : %d",

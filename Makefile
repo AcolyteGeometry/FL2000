@@ -26,6 +26,7 @@ fl2000-y := src/fl2000_module.o \
 	    src/fl2000_surface.o \
 	    src/fl2000_fops.o \
 	    src/fl2000_hdmi.o \
+	    src/fl2000_debugfs.o
 
 ifdef CONFIG_USB_FL2000
 
