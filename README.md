@@ -2,8 +2,10 @@
 
 ### 1. What is this?
 
-This is an official driver release from Fresco Logic in an attempt to help the open-source community adopting the development and use of the FL2000DX device.
-This driver only covers the USB part of the display logic. It does not support the Linux desktop logic (eg. extended desktop vs mirrored desktop).
+Not a driver showing you a VGA screen (yet) like "nouveau" does.
+
+Instead, this is an official driver release from Fresco Logic in an attempt to help the open-source community adopting the development and use of the FL2000DX device.
+This driver only covers the USB part of the display logic. It does not support the Linux desktop logic (eg. extended desktop vs mirrored desktop). <---  Their way of saying: "You see nothing on your VGA."
 
 ### 2. On which kernel versions does this driver work?
 
