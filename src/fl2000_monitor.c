@@ -11,72 +11,6 @@
 // P R I V A T E
 /////////////////////////////////////////////////////////////////////////////////
 //
-void
-fl2000_monitor_filter_established_timing(struct dev_ctx * dev_ctx)
-{
-	// Check byte 35
-	//
-	// Bit 0 800x600 @ 60 Hz
-	// Bit 1 800x600 @ 56 Hz
-	// Bit 2 640x480 @ 75 Hz
-	// Bit 3 640x480 @ 72 Hz
-	// Bit 4 640x480 @ 67 Hz
-	// Bit 5 640x480 @ 60 Hz
-	// Bit 6 720x400 @ 88 Hz
-	// Bit 7 720x400 @ 70 Hz
-	//
-	dev_ctx->monitor_edid[0][35] = 0x21;
-
-	// Check byte 36
-	//
-	// Bit 0 1280x1024 @ 75 Hz
-	// Bit 1 1024x768  @ 75 Hz
-	// Bit 2 1024x768  @ 72 Hz
-	// Bit 3 1024x768  @ 60 Hz
-	// Bit 4 1024x768  @ 87 Hz, interlaced (1024*768i)
-	// Bit 5 832x624   @ 75 Hz
-	// Bit 6 800x600   @ 75 Hz
-	// Bit 7 800x600   @ 72 Hz
-	//
-	dev_ctx->monitor_edid[0][36] = 0x8;
-
-	// Check Byte 37
-	//
-	// Bit 7 for 1152x870@75Hz.
-	//
-	dev_ctx->monitor_edid[0][37] = 0;
-}
-
-bool
-fl2000_monitor_resolution_in_white_table(
-	uint32_t width,
-	uint32_t height,
-	uint32_t freq)
-{
-	bool in_white_list;
-	const struct resolution_entry * entry;
-
-	if (freq != 60) {
-		in_white_list = false;
-		goto exit;
-	}
-
-	if (width * height > MAX_WIDTH * MAX_HEIGHT) {
-		in_white_list = false;
-		goto exit;
-	}
-
-	entry = fl2000_table_get_entry(
-		VGA_BIG_TABLE_24BIT_R0,
-		width,
-		height,
-		freq);
-	in_white_list = (entry != NULL);
-
-exit:
-	return in_white_list;
-}
-
 void fl2000_monitor_ratio_to_dimension(
 	uint8_t x,
 	uint8_t aspect_ratio,
@@ -111,100 +45,6 @@ void fl2000_monitor_ratio_to_dimension(
 	*height = temp_height;
 }
 
-void fl2000_monitor_filter_std_timing(struct dev_ctx * dev_ctx)
-{
-	uint8_t i;
-	uint32_t width;
-	uint32_t height;
-	uint32_t freq;
-	bool in_white_table;
-
-	/*
-	 * EDID offset 38 ~ 53. Standard timing information. Upto 8 2-bytes.
-	 * Unused fields are filled with 01 01
-	 */
-	for (i = 38; i < 53; i+= 2) {
-		uint8_t	 x = dev_ctx->monitor_edid[0][i];
-		uint8_t  ratio = dev_ctx->monitor_edid[0][i + 1] >> 6;
-
-		freq = (dev_ctx->monitor_edid[0][i + 1] & 0x3F) + 60;
-		if (dev_ctx->monitor_edid[0][i] == 1 &&
-		    dev_ctx->monitor_edid[0][i + 1] == 1)
-			break;
-
-		fl2000_monitor_ratio_to_dimension(
-			x,
-			ratio,
-			&width,
-			&height);
-
-		in_white_table = fl2000_monitor_resolution_in_white_table(
-			width,
-			height,
-			freq);
-		if (!in_white_table) {
-			/*
-			 * make it a 1024x768
-			 */
-			dev_ctx->monitor_edid[0][i] = 97;
-			dev_ctx->monitor_edid[0][i + 1]= IMAGE_ASPECT_RATIO_4_3 << 6;
-		}
-
-	}
-}
-
-void fl2000_monitor_filter_detailed_timing(struct dev_ctx * dev_ctx)
-{
-	uint32_t pixel_clock;
-	uint32_t h_active;
-	uint32_t h_blanking;
-	uint32_t v_active;
-	uint32_t v_blanking;
-	uint32_t i;
-
-	for (i = 54; i < 125; i+= 18) {
-		uint8_t *  entry = &dev_ctx->monitor_edid[0][i];
-
-		/*
-		 * NOT detailed timing descriptor
-		 */
-		if (entry[0] == 0 && entry[1] == 0)
-			break;
-
-		pixel_clock = entry[1] << 8 | entry[0];
-		pixel_clock *= 10000;
-
-		h_active = (entry[4] >> 4) << 8 | entry[2];
-		h_blanking = (entry[4] & 0x0F) << 8 | entry[3];
-		v_active = (entry[7] >> 4) << 8 | entry[5];
-		v_blanking = (entry[7] & 0x0F) << 8 | entry[6];
-
-		/*
-		 * if image is larger than 1920x1080, downgrade it
-		 */
-		if (h_active * v_active > MAX_WIDTH * MAX_HEIGHT) {
-			h_active = MAX_WIDTH;
-			v_active = MAX_HEIGHT;
-			h_blanking = 128;
-			v_blanking = 32;
-			pixel_clock = (h_active + h_blanking) *
-				(v_active + v_blanking) * 60;
-			pixel_clock /= 10000;
-			entry[0] = pixel_clock & 0xFF;
-			entry[1] = (pixel_clock >> 8) & 0xFF;
-			entry[2] = h_active & 0xFF;
-			entry[3] = h_blanking & 0xFF;
-			entry[4] = (h_active >> 8) << 4 | (h_blanking >> 8);
-			entry[5] = v_active & 0xFF;
-			entry[6] = v_blanking & 0xFF;
-			entry[7] = (v_active >> 8) << 4 | (v_blanking >> 8);
-			/*
-			 * don't care entry[8 ~ 17], leave them as is.
-			 */
-		}
-	}
-}
-
 bool fl2000_monitor_read_edid_dsub(struct dev_ctx * dev_ctx)
 {
 	uint8_t index;
@@ -218,31 +58,6 @@ bool fl2000_monitor_read_edid_dsub(struct dev_ctx * dev_ctx)
 
 	// EDID Header check.
 	//
-	read_status = fl2000_i2c_read(dev_ctx, I2C_ADDRESS_DSUB, 0, &data);
-	if (read_status < 0) {
-		dbg_msg(TRACE_LEVEL_ERROR, DBG_PNP,
-			"ERROR Read Edid table failed.");
-		goto exit;
-	}
-
-	if (EDID_HEADER_DWORD1 != data) {
-		dbg_msg(TRACE_LEVEL_ERROR, DBG_PNP,
-			"ERROR Read Edid data incorrect.");
-		goto exit;
-	}
-
-	read_status = fl2000_i2c_read(dev_ctx, I2C_ADDRESS_DSUB, 4, &data);
-	if (read_status < 0) {
-		dbg_msg(TRACE_LEVEL_ERROR, DBG_PNP,
-			"ERROR Read Edid table failed.");
-		goto exit;
-	}
-
-	if (EDID_HEADER_DWORD2 != data) {
-		dbg_msg(TRACE_LEVEL_ERROR, DBG_PNP,
-			"ERROR Read Edid data incorrect.");
-		goto exit;
-	}
 
 	for (index = 0; index < EDID_SIZE; index += 4) {
 		read_status = fl2000_i2c_read(
@@ -265,12 +80,225 @@ exit:
     return ret_val;
 }
 
+
+/* ULLI : Fresco Logic does some verify after write monitor register
+ * add some helper to simplify/reduce code
+ */
+
+int _fl2000_reg_write_verify(struct dev_ctx * dev_ctx, uint32_t offset,
+			     uint32_t *data)
+{
+	int ret;
+	uint32_t read_back = 0;
+
+	ret = fl2000_reg_write(dev_ctx, offset, data);
+	if (ret < 0)
+		return ret;
+
+	ret = fl2000_reg_read(dev_ctx, offset, &read_back);
+	if (ret < 0)
+		return ret;
+
+	if (*data != read_back)
+		return -1;
+
+	return 0;
+}
+
+static void _fl2000_set_video_mode(struct dev_ctx * dev_ctx)
+{
+	int ret;
+	uint32_t value;
+
+	// REG_OFFSET_8004
+
+	ret = fl2000_reg_read(dev_ctx, FL2K_REG_FORMAT, &value);
+	if (ret < 0)
+		return;
+
+	// Clear bit 28, Default setting.
+	//
+
+	value &= ~FL2K_MON_RESET_DEFAULT;
+
+	// Clear bit 6( 565 ) & 31( 555 ), 16 bit color mode.
+
+	value &= ~(FL2K_MON_RGB_565_MODE | FL2K_MON_RGB_555_MODE);
+
+	// Clear bit 24, Disable compression.
+
+	value &= ~FL2K_MON_COMPRESSION;
+
+	// Clear bit 25, Disable 8 bit color mode.
+
+	value &= ~FL2K_MON_8BIT_RGB;
+
+	// Clear bit 26, Disable 256 color palette.
+
+	value &= ~FL2K_MON_256COLOR_PALETTE;
+
+	// Clear bit 27, Disable first byte mask.
+
+	value &= ~FL2K_MON_FIRST_BYTE_MASK;
+
+	// Set bit 0, Reset VGA CCS.
+
+	value |= FL2K_MON_RESET_VGA_CSS;
+
+	if (dev_ctx->vr_params.use_compression) {
+		// Set bit 24, Enable compression mode.
+		
+		value |= FL2K_MON_COMPRESSION;
+	}
+
+	if (OUTPUT_IMAGE_TYPE_RGB_16 == dev_ctx->vr_params.output_image_type) {
+		if (VR_16_BIT_COLOR_MODE_555 ==
+		    dev_ctx->vr_params.color_mode_16bit) {
+			// Bit 31 for 555 mode.
+			//
+			value |= FL2K_MON_RGB_555_MODE;
+		}
+		else {
+			// Bit 6 for 565 mode.
+			//
+			value |= FL2K_MON_RGB_565_MODE;
+		}
+	}
+#if 0	/* ULLI : disabled, code is kept here only for consistently */	
+	else if (OUTPUT_IMAGE_TYPE_RGB_8 ==
+		 dev_ctx->vr_params.output_image_type) {
+		// Bit 25 for enable eight bit color mode.
+		//
+		value |= FL2K_MON_8BIT_RGB;
+	}
+#endif
+
+	// External DAC Control
+	//
+	// Set bit 7, Enable external DAC.
+	//
+	value |= FL2K_MON_EXTERNAL_DAC;
+
+	ret = fl2000_reg_write(dev_ctx, FL2K_REG_FORMAT, &value);
+}
+
+static void _fl2000_set_intrl_ctrl(struct dev_ctx * dev_ctx)
+{
+	int ret;
+	uint32_t value;
+
+	// REG_OFFSET_803C
+	//
+
+	ret = fl2000_reg_read(dev_ctx, FL2K_REG_INT_CTRL, &value);
+	if (ret < 0)
+		return;
+
+	// Clear bit 22 - Disable BIA.
+	
+	value &= ~FL2K_USB_BIA;
+
+	// Clear bit 24 - Disable isoch error interrupt.
+
+	value &= ~FL2K_USB_ISO_ERR_INT;
+
+	// Clear bit 19,21 - Disable isoch auto recover.
+
+	value &= ~FL2K_USB_ISO_AUTO_RECOVER;
+
+	// Clear bit 13 - Disable isoch feedback interrupt.
+
+	value &= ~FL2K_USB_ISO_FRAME_FEEDBACK;
+
+	// Clear bit 27:29 - End Of Frame Type
+
+	value &= ~FL2K_USB_END_MASK;
+
+#if 0	/* ULLI : remains only as remark */
+	if (dev_ctx->vr_params.end_of_frame_type == EOF_ZERO_LENGTH) {
+		// Zero Length Bulk.
+		//
+#endif
+		value |= FL2K_USB_END_ZERO_BULK;
+#if 0	/* ULLI : remains only as remark */
+	}
+	else  {
+		// Pending Bit.
+		//
+		value |= FL2K_USB_END_PENDIG_BIT;
+	}
+#endif
+
+	ret = fl2000_reg_write(dev_ctx, FL2K_REG_INT_CTRL, &value);
+
+}
+
+static int _fl2000_set_video_timing(struct dev_ctx * dev_ctx,
+				    struct fl2000_timing_entry const * entry)
+{
+	bool ret_val;
+	uint32_t h_sync_reg_1 = entry->h_sync_reg_1;
+	uint32_t h_sync_reg_2 = entry->h_sync_reg_2;
+	uint32_t v_sync_reg_1 = entry->v_sync_reg_1;
+	uint32_t v_sync_reg_2 = entry->v_sync_reg_2;
+
+	ret_val = true;
+
+	if (dev_ctx->hdmi_chip_found) {
+	        if (dev_ctx->vr_params.width == 640 &&
+	            dev_ctx->vr_params.height == 480 &&
+	            dev_ctx->vr_params.freq == 60) {
+			h_sync_reg_2 = 0x600091;
+	                v_sync_reg_2 = 0x2420024;
+	        } else if (dev_ctx->vr_params.width == 1280 &&
+	                   dev_ctx->vr_params.height == 720 &&
+	                   dev_ctx->vr_params.freq == 60) {
+	                v_sync_reg_2 = 0x1A5001A;
+	        } else {
+	                // No adjustment.
+	                //
+	        }
+	}
+
+	// REG_OFFSET_8008
+	//
+	if (_fl2000_reg_write_verify(dev_ctx, FL2K_REG_H_SYNC1, &h_sync_reg_1)) {
+		ret_val = false;
+		goto exit;
+	}
+
+	// REG_OFFSET_800C
+	//
+	if (_fl2000_reg_write_verify(dev_ctx, FL2K_REG_H_SYNC2, &h_sync_reg_2)) {
+		ret_val = false;
+		goto exit;
+	}
+
+	// REG_OFFSET_8010
+	//
+	if (_fl2000_reg_write_verify(dev_ctx, FL2K_REG_V_SYNC1, &v_sync_reg_1)) {
+		ret_val = false;
+		goto exit;
+	}
+
+	// REG_OFFSET_8014
+	//
+	if (_fl2000_reg_write_verify(dev_ctx, FL2K_REG_V_SYNC2, &v_sync_reg_2)) {
+		ret_val = false;
+		goto exit;
+	}
+
+exit:
+	return ret_val;
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 // P U B L I C
 /////////////////////////////////////////////////////////////////////////////////
 //
 
-bool fl2000_monitor_set_resolution(struct dev_ctx * dev_ctx, bool pll_changed)
+static bool fl2000_monitor_set_resolution(struct dev_ctx * dev_ctx, bool pll_changed,
+					  struct fl2000_timing_entry const * entry)
 {
 	uint32_t data;
 	bool ret_val;
@@ -282,13 +310,7 @@ bool fl2000_monitor_set_resolution(struct dev_ctx * dev_ctx, bool pll_changed)
 		// REG_OFFSET_802C
 		//
 		data = dev_ctx->vr_params.pll_reg;
-		if (fl2000_reg_write(dev_ctx, REG_OFFSET_802C, &data)) {
-			// From Ni Jie, only isoch transfer needs to wait until
-			// PLL stabilized.
-			if (VR_TRANSFER_PIPE_ISOCH ==
-			    dev_ctx->vr_params.trasfer_pipe)
-				DELAY_MS(1000);
-		}
+		fl2000_reg_write(dev_ctx, FL2K_REG_PLL, &data);
 	}
 
 	// REG_OFFSET_8048 ( 0x8048 )< bit 15 > = 1, app reset, self clear.
@@ -298,166 +320,24 @@ bool fl2000_monitor_set_resolution(struct dev_ctx * dev_ctx, bool pll_changed)
 	// Confirm PLL setting.
 	//
 	data = 0;
-	fl2000_reg_read(dev_ctx, REG_OFFSET_802C, &data);
+	fl2000_reg_read(dev_ctx, FL2K_REG_PLL, &data);
 	if (dev_ctx->vr_params.pll_reg != data) {
 		ret_val = false;
 		goto exit;
 	}
 
-	// REG_OFFSET_803C
-	//
-
-	// Clear bit 22 - Disable BIA.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 22);
-
-	// Clear bit 24 - Disable isoch error interrupt.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 24);
-
-	// Clear bit 19,21 - Disable isoch auto recover.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 19);
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 21);
-
-	// Clear bit 13 - Disable isoch feedback interrupt.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 13);
-
-	// Clear bit 27:29 - End Of Frame Type
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 27);
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 28);
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 29);
-
-	if (dev_ctx->vr_params.end_of_frame_type == EOF_ZERO_LENGTH) {
-		// Zero Length Bulk.
-		//
-		fl2000_reg_bit_set(dev_ctx, REG_OFFSET_803C, 28);
-	}
-	else  {
-		// Pending Bit.
-		//
-		fl2000_reg_bit_set(dev_ctx, REG_OFFSET_803C, 29);
-	}
-
-	// REG_OFFSET_8004
-	//
-
-	// Clear bit 28, Default setting.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_8004, 28);
-
-	// Clear bit 6( 565 ) & 31( 555 ), 16 bit color mode.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_8004, 6);
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_8004, 31);
-
-	// Clear bit 24, Disable compression.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_8004, 24);
-
-	// Clear bit 25, Disable 8 bit color mode.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_8004, 25);
-
-	// Clear bit 26, Disable 256 color palette.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_8004, 26);
-
-	// Clear bit 27, Disable first byte mask.
-	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_8004, 27);
-
-	// Set bit 0, Reset VGA CCS.
-	//
-	fl2000_reg_bit_set(dev_ctx, REG_OFFSET_8004, 0);
-
-	if (dev_ctx->vr_params.use_compression) {
-		// Set bit 24, Enable compression mode.
-		//
-		fl2000_reg_bit_set(dev_ctx, REG_OFFSET_8004, 24);
-	}
-
-	if (OUTPUT_IMAGE_TYPE_RGB_16 == dev_ctx->vr_params.output_image_type) {
-		if (VR_16_BIT_COLOR_MODE_555 ==
-		    dev_ctx->vr_params.color_mode_16bit) {
-			// Bit 31 for 555 mode.
-			//
-			fl2000_reg_bit_set(dev_ctx, REG_OFFSET_8004, 31);
-		}
-		else {
-			// Bit 6 for 565 mode.
-			//
-			fl2000_reg_bit_set(dev_ctx, REG_OFFSET_8004, 6);
-		}
-	}
-	else if (OUTPUT_IMAGE_TYPE_RGB_8 ==
-		 dev_ctx->vr_params.output_image_type) {
-		// Bit 25 for enable eight bit color mode.
-		//
-		fl2000_reg_bit_set(dev_ctx, REG_OFFSET_8004, 25);
-	}
-
-	// External DAC Control
-	//
-	// Set bit 7, Enable external DAC.
-	//
-	fl2000_reg_bit_set(dev_ctx, REG_OFFSET_8004, 7);
-
-	// REG_OFFSET_8008
-	//
-	data = dev_ctx->vr_params.h_sync_reg_1;
-	if (fl2000_reg_write(dev_ctx, REG_OFFSET_8008, &data)) {
-		data = 0;
-		fl2000_reg_read(dev_ctx, REG_OFFSET_8008, &data);
-		if (dev_ctx->vr_params.h_sync_reg_1 != data) {
-			ret_val = false;
-			goto exit;
-		}
-	}
-
-	// REG_OFFSET_800C
-	//
-	data = dev_ctx->vr_params.h_sync_reg_2;
-	if (fl2000_reg_write(dev_ctx, REG_OFFSET_800C, &data)) {
-		fl2000_reg_read(dev_ctx, REG_OFFSET_800C, &data);
-		if (dev_ctx->vr_params.h_sync_reg_2 != data) {
-			ret_val = false;
-			goto exit;
-		}
-	}
-
-	// REG_OFFSET_8010
-	//
-	data = dev_ctx->vr_params.v_sync_reg_1;
-	if (fl2000_reg_write(dev_ctx, REG_OFFSET_8010, &data)) {
-		fl2000_reg_read(dev_ctx, REG_OFFSET_8010, &data);
-		if (dev_ctx->vr_params.v_sync_reg_1 != data) {
-			ret_val = false;
-			goto exit;
-		}
-	}
-
-	// REG_OFFSET_8014
-	//
-	data = dev_ctx->vr_params.v_sync_reg_2;
-	if (fl2000_reg_write(dev_ctx, REG_OFFSET_8014, &data)) {
-		fl2000_reg_read(dev_ctx, REG_OFFSET_8014, &data);
-		if ( dev_ctx->vr_params.v_sync_reg_2 != data ) {
-			ret_val = false;
-			goto exit;
-		}
-	}
+	_fl2000_set_intrl_ctrl(dev_ctx);
+	_fl2000_set_video_mode(dev_ctx);
+	_fl2000_set_video_timing(dev_ctx, entry);
 
 	// REG_OFFSET_801C
 	//
 
 	// Clear bit 29:16 - Iso Register
 	//
-	if (fl2000_reg_read(dev_ctx, REG_OFFSET_801C, &data)) {
+	if (fl2000_reg_read(dev_ctx, FL2K_REG_ISO_CTRL, &data)) {
 		data &= 0xC000FFFF;
-		if (!fl2000_reg_write( dev_ctx, REG_OFFSET_801C, &data)) {
+		if (!fl2000_reg_write( dev_ctx, FL2K_REG_ISO_CTRL, &data)) {
 			ret_val = false;
 			goto exit;
 		}
@@ -469,6 +349,111 @@ exit:
     dbg_msg(TRACE_LEVEL_VERBOSE, DBG_PNP, "<<<<");
 
     return ret_val;
+}
+
+int
+fl2000_dongle_set_params(struct dev_ctx * dev_ctx, struct vr_params * vr_params)
+{
+	int ret_val;
+	bool ret;
+	uint32_t old_pll;
+	uint32_t new_pll;
+	bool pll_changed;
+	struct fl2000_timing_entry const * entry = NULL;
+	size_t table_num;
+
+	dbg_msg(TRACE_LEVEL_VERBOSE, DBG_PNP, ">>>>");
+
+	// FileIO thread references to parameters and need to avoid concurrent access.
+	//
+	ret_val = 0;
+	pll_changed = false;
+
+	// Set PLL register takes long time to stabilize, therefore, we set that only
+	// found it's different to previous setting.
+	//
+	old_pll = dev_ctx->vr_params.pll_reg;
+	memcpy(&dev_ctx->vr_params, vr_params, sizeof(struct vr_params));
+
+	dev_ctx->vr_params.pll_reg = old_pll;
+
+	if (dev_ctx->registry.CompressionEnable ||
+	    vr_params->use_compression) {
+		dev_ctx->vr_params.use_compression = 1;
+
+		dev_ctx->vr_params.compression_mask_index_min = COMPRESSION_MASK_INDEX_MINIMUM;
+		dev_ctx->vr_params.compression_mask_index_max = COMPRESSION_MASK_INDEX_MAXIMUM;
+
+		if (dev_ctx->registry.Usb2PixelFormatTransformCompressionEnable) {
+			// Bug#6346: Need more aggressive compression mask.
+			//
+			dev_ctx->vr_params.compression_mask = COMPRESSION_MASK_13_BIT_VALUE;
+			dev_ctx->vr_params.compression_mask_index = COMPRESSION_MASK_13_BIT_INDEX;
+
+			// Output is RGB555, and need at most the mask.
+			//
+			dev_ctx->vr_params.compression_mask_index_min = COMPRESSION_MASK_15_BIT_INDEX;
+		}
+		else {
+			dev_ctx->vr_params.compression_mask = COMPRESSION_MASK_23_BIT_VALUE;
+			dev_ctx->vr_params.compression_mask_index = COMPRESSION_MASK_23_BIT_INDEX;
+		}
+	}
+
+	switch (dev_ctx->vr_params.output_image_type) {
+	case OUTPUT_IMAGE_TYPE_RGB_16:
+		table_num = VGA_BIG_TABLE_16BIT_R0;
+		break;
+	case OUTPUT_IMAGE_TYPE_RGB_24:
+	default:
+		table_num = VGA_BIG_TABLE_24BIT_R0;
+		break;
+	}
+
+	entry = fl2000_table_get_entry(
+		table_num,
+		dev_ctx->vr_params.width,
+		dev_ctx->vr_params.height,
+		dev_ctx->vr_params.freq);
+	if (entry == NULL) {
+			dbg_msg(TRACE_LEVEL_ERROR, DBG_PNP,
+				"ERROR fl2000_table_get_entry failed.");
+			ret_val = -EINVAL;
+			goto exit;
+		}
+
+	dev_ctx->vr_params.h_total_time = entry->h_total_time;
+	dev_ctx->vr_params.v_total_time = entry->v_total_time;
+
+	new_pll = entry->bulk_asic_pll;
+
+	if (new_pll != dev_ctx->vr_params.pll_reg) {
+	    pll_changed = true;
+	    dev_ctx->vr_params.pll_reg = new_pll;
+	}
+
+	ret = fl2000_monitor_set_resolution(dev_ctx, pll_changed, entry);
+	if (!ret) {
+		dbg_msg(TRACE_LEVEL_ERROR, DBG_PNP,
+			"[ERR] fl2000_monitor_set_resolution failed?");
+		ret_val = -EIO;
+		goto exit;
+	}
+
+	// Select Interface
+	//
+	ret_val = fl2000_dev_select_interface(dev_ctx);
+	if (ret_val < 0) {
+		dbg_msg(TRACE_LEVEL_ERROR, DBG_PNP,
+			"ERROR fl2000_dev_select_interface failed?");
+		goto exit;
+	}
+
+	dev_ctx->usb_pipe_bulk_out = usb_sndbulkpipe(dev_ctx->usb_dev, 1);
+
+exit:
+	dbg_msg(TRACE_LEVEL_VERBOSE, DBG_PNP, "<<<<");
+	return (ret_val);
 }
 
 void fl2000_monitor_read_edid(struct dev_ctx * dev_ctx)
@@ -524,71 +509,6 @@ edid_exit:
 		//
 		memset(dev_ctx->monitor_edid[0], 0, EDID_SIZE);
 		goto exit;
-	}
-
-	if (dev_ctx->registry.FilterEdidTableEnable) {
-		// Filter EDID
-		//
-		if (IS_DEVICE_USB3LINK(dev_ctx)) {
-			fl2000_monitor_filter_established_timing(dev_ctx);
-			fl2000_monitor_filter_std_timing(dev_ctx);
-			fl2000_monitor_filter_detailed_timing(dev_ctx);
-		}
-		else {
-			switch (dev_ctx->registry.FilterEdidTableEnable) {
-			case EDID_FILTER_USB2_800_600_60HZ:
-				// 800x600@60Hz.
-				//
-				// PrivateParseEdidEstablishedTimingBitmap
-				//
-				dev_ctx->monitor_edid[0][35] = 1;
-				dev_ctx->monitor_edid[0][36] = 0;
-				dev_ctx->monitor_edid[0][37] = 0;
-
-				// PrivateParseEdidStandardTimingInformation
-				//
-				for (index = 38; index < 54; index++)
-					dev_ctx->monitor_edid[0][index] = 0x01;
-
-				// PrivateParseEdidDetailedTimingDescriptors
-				//
-				dev_ctx->monitor_edid[0][54] = 0x40;
-				dev_ctx->monitor_edid[0][55] = 0x0B;
-				dev_ctx->monitor_edid[0][56] = 0x20;
-				dev_ctx->monitor_edid[0][57] = 0x00;
-				dev_ctx->monitor_edid[0][58] = 0x30;
-				dev_ctx->monitor_edid[0][59] = 0x58;
-				dev_ctx->monitor_edid[0][60] = 0x00;
-				dev_ctx->monitor_edid[0][61] = 0x20;
-				break;
-			case EDID_FILTER_USB2_640_480_60HZ:
-				//
-				// PrivateParseEdidEstablishedTimingBitmap
-				//
-				dev_ctx->monitor_edid[0][35] = 0x20;
-				dev_ctx->monitor_edid[0][36] = 0;
-				dev_ctx->monitor_edid[0][37] = 0;
-
-				// PrivateParseEdidStandardTimingInformation
-				//
-				for (index = 38; index < 54; index++)
-					dev_ctx->monitor_edid[0][index] = 0x01;
-
-				// PrivateParseEdidDetailedTimingDescriptors
-				//
-				dev_ctx->monitor_edid[0][54] = 0x3F;
-				dev_ctx->monitor_edid[0][55] = 0x07;
-				dev_ctx->monitor_edid[0][56] = 0x80;
-				dev_ctx->monitor_edid[0][57] = 0x00;
-				dev_ctx->monitor_edid[0][58] = 0x20;
-				dev_ctx->monitor_edid[0][59] = 0xE0;
-				dev_ctx->monitor_edid[0][60] = 0x0;
-				dev_ctx->monitor_edid[0][61] = 0x10;
-				break;
-			default:
-				break;
-			}
-		}
 	}
 
 	check_sum = 0;
@@ -691,7 +611,7 @@ fl2000_monitor_plugout_handler(
 	// TODO: FL2000DX should not need this step per Stanley's description.
 	//       This maybe hardware issue, and Jun is checking now.
 	//
-	fl2000_reg_bit_clear(dev_ctx, REG_OFFSET_803C, 26);
+	fl2000_reg_bit_clear(dev_ctx, FL2K_REG_INT_CTRL, 26);
 
 	// Per NJ's description:
 	// Register 0x78 bit17 is used to control a bug where we did not wake up U1/U2 even
@@ -714,6 +634,9 @@ fl2000_monitor_vga_status_handler(
 	struct vga_status *  vga_status;
 
 	dbg_msg(TRACE_LEVEL_VERBOSE, DBG_PNP, ">>>>");
+
+	dev_info(&dev_ctx->usb_dev->dev, "FL2000 interrupt status word %08x",
+		 raw_status);
 
 	vga_status = (struct vga_status *) &raw_status;
 	if (vga_status->connected) {
@@ -765,7 +688,7 @@ fl2000_monitor_manual_check_connection(struct dev_ctx * dev_ctx)
 	dbg_msg(TRACE_LEVEL_VERBOSE, DBG_PNP, ">>>>");
 
 	data = 0;
-	if (fl2000_reg_read(dev_ctx, REG_OFFSET_8000, &data)) {
+	if (fl2000_reg_read(dev_ctx, FL2K_REG_INT_STATUS, &data)) {
 		fl2000_monitor_vga_status_handler(dev_ctx, data);
 	}
 

@@ -84,7 +84,7 @@ fl2000_i2c_read(
 	ret_val = fl2000_i2c_xfer(
 		dev_ctx,
 		VGA_MMIO_READ,
-		REG_OFFSET_8020,
+		FL2K_REG_I2C_CTRL,
 		&read_back_data);
 	if (ret_val < 0) {
 		dbg_msg(TRACE_LEVEL_WARNING, DBG_HW,
@@ -97,7 +97,7 @@ fl2000_i2c_read(
 	//
 	read_back_data |= 0x10000000;
 
-	// Step 2: Program data to REG_OFFSET_8020.
+	// Step 2: Program data to FL2K_REG_I2C_CTRL.
 	//
 	i2c_data.value = read_back_data;
 	i2c_data.s.Addr = i2c_addr;
@@ -110,7 +110,7 @@ fl2000_i2c_read(
 	ret_val = fl2000_i2c_xfer(
 		dev_ctx,
 		VGA_MMIO_WRITE,
-		REG_OFFSET_8020,
+		FL2K_REG_I2C_CTRL,
 		(uint32_t*)&i2c_data);
 
 	if (ret_val < 0) {
@@ -123,7 +123,7 @@ fl2000_i2c_read(
 	//
 	DELAY_MS(3);
 
-	// Step 3: Read back REG_OFFSET_8020, and make sure bit31 is set to 1.
+	// Step 3: Read back FL2K_REG_I2C_CTRL, and make sure bit31 is set to 1.
 	//         Because I2C is very slow, we should retry to make sure it done.
 	//
 	i2c_done = false;
@@ -133,7 +133,7 @@ fl2000_i2c_read(
 		ret_val = fl2000_i2c_xfer(
 			dev_ctx,
 			VGA_MMIO_READ,
-			REG_OFFSET_8020,
+			FL2K_REG_I2C_CTRL,
 			&read_back_data);
 		if (ret_val < 0) {
 			dbg_msg(TRACE_LEVEL_WARNING, DBG_HW,
@@ -166,7 +166,7 @@ fl2000_i2c_read(
 	ret_val = fl2000_i2c_xfer(
 		dev_ctx,
 		VGA_MMIO_READ,
-		REG_OFFSET_8024,
+		FL2K_REG_I2C_DATA_RD,
 		&read_back_data);
 	if (ret_val < 0) {
 		dbg_msg(TRACE_LEVEL_WARNING, DBG_HW,
@@ -200,7 +200,7 @@ int fl2000_i2c_write(
 	ret_val = fl2000_i2c_xfer(
 		dev_ctx,
 		VGA_MMIO_WRITE,
-		REG_OFFSET_8028,
+		FL2K_REG_I2C_DATA_WR,
 		write_dword);
 	if (ret_val < 0) {
 		dbg_msg(TRACE_LEVEL_WARNING, DBG_HW,
@@ -214,7 +214,7 @@ int fl2000_i2c_write(
 	ret_val = fl2000_i2c_xfer(
 		dev_ctx,
 		VGA_MMIO_READ,
-		REG_OFFSET_8020,
+		FL2K_REG_I2C_CTRL,
 		&read_back_data);
 	if (ret_val < 0) {
 		dbg_msg(TRACE_LEVEL_WARNING, DBG_HW,
@@ -227,7 +227,7 @@ int fl2000_i2c_write(
 	//
 	read_back_data |= 0x10000000;
 
-	// Step 3: Porgram data to REG_OFFSET_8020.
+	// Step 3: Porgram data to FL2K_REG_I2C_CTRL.
 	//
 	i2c_data.value = read_back_data;
 	i2c_data.s.Addr = i2c_addr;
@@ -240,7 +240,7 @@ int fl2000_i2c_write(
 	ret_val = fl2000_i2c_xfer(
 		dev_ctx,
 		VGA_MMIO_WRITE,
-		REG_OFFSET_8020,
+		FL2K_REG_I2C_CTRL,
 		(uint32_t*)&i2c_data);
 	if (ret_val < 0) {
 		dbg_msg(TRACE_LEVEL_WARNING, DBG_HW,
@@ -252,7 +252,7 @@ int fl2000_i2c_write(
 	//
 	DELAY_MS(3);
 
-	// Step 3: Read back REG_OFFSET_8020, and make sure bit31 is set to 1.
+	// Step 3: Read back FL2K_REG_I2C_CTRL, and make sure bit31 is set to 1.
 	//         Because I2C is very slow, we should retry to make sure it done.
 	//
 	i2c_done = false;
@@ -262,7 +262,7 @@ int fl2000_i2c_write(
 		ret_val = fl2000_i2c_xfer(
 			dev_ctx,
 			VGA_MMIO_READ,
-			REG_OFFSET_8020,
+			FL2K_REG_I2C_CTRL,
 			&read_back_data);
 		if (ret_val < 0) {
 			dbg_msg(TRACE_LEVEL_WARNING, DBG_HW,

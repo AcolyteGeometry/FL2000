@@ -19,42 +19,22 @@ struct render_ctx;
  */
 #define	NUM_RENDER_ON_BUS	2
 
-struct resolution_entry
-{
+struct fl2000_timing_entry {
 	uint32_t 	width;
 	uint32_t 	height;
 	uint32_t 	freq;
 	uint32_t 	h_total_time;
-	uint32_t 	h_sync_time;
-	uint32_t 	h_back_porch;
 	uint32_t 	v_total_time;
-	uint32_t 	v_sync_time;
-	uint32_t 	v_back_porch;
-	uint32_t 	isoch_num_of_pkt;
-	uint32_t 	isoch_td_size_in_kb;
-	uint32_t 	isoch_zero_bytes;
-	uint32_t 	itp_per_frame;
-	uint32_t 	num_of_idle;
-	uint32_t 	td_size;
 	uint32_t 	h_sync_reg_1;
 	uint32_t 	h_sync_reg_2;
 	uint32_t 	v_sync_reg_1;
 	uint32_t 	v_sync_reg_2;
-	uint32_t 	iso_reg;
-	uint32_t 	bulk_fpga_pll;
 	uint32_t 	bulk_asic_pll;
-	uint32_t 	isoch_fpga_pll;
-	uint32_t 	isoch_asic_pll;
-	uint32_t 	isoch_fpga_h_sync_reg_1;
-	uint32_t 	isoch_asic_h_sync_reg_1;
-	uint32_t 	bus_interval_adjust;
 };
 
 struct registry
 {
-	uint32_t FilterEdidTableEnable;
 	uint32_t CurrentNumberOfDevices;
-	uint32_t UsePollingMonitorConnection;
 
 	uint32_t CompressionEnable;
 	uint32_t Usb2PixelFormatTransformCompressionEnable;
@@ -66,12 +46,7 @@ struct vr_params
 	uint32_t	height;
 	uint32_t	freq;
 	uint32_t	h_total_time;
-	uint32_t	h_sync_time;
-	uint32_t	h_back_porch;
 	uint32_t	v_total_time;
-	uint32_t	v_sync_time;
-	uint32_t	v_back_porch;
-	uint32_t	trasfer_pipe;
 
 	// Compression.
 	//
@@ -81,14 +56,9 @@ struct vr_params
 	uint32_t	compression_mask_index_min;
 	uint32_t	compression_mask_index_max;
 
-	uint32_t	h_sync_reg_1;
-	uint32_t	h_sync_reg_2;
-	uint32_t	v_sync_reg_1;
-	uint32_t	v_sync_reg_2;
 	uint32_t	pll_reg;
 	uint32_t	input_bytes_per_pixel;
 	uint32_t	output_image_type;
-	uint32_t	end_of_frame_type;
 	uint32_t	color_mode_16bit;
 };
 
@@ -159,6 +129,22 @@ struct render {
 	uint32_t		green_light;
 };
 
+struct urb_node {
+	struct list_head entry;
+	struct dev_ctx *fl2k;
+	struct delayed_work release_urb_work;
+	struct urb *urb;
+};
+
+struct urb_list {
+	struct list_head list;
+	spinlock_t lock;
+	struct semaphore limit_sem;
+	int available;
+	int count;
+	size_t size;
+};
+
 struct dev_ctx {
 	struct usb_device*		usb_dev;
 	struct usb_device_descriptor	usb_dev_desc;
@@ -178,6 +164,8 @@ struct dev_ctx {
 	 * __sync_xxx_and_fetch. kind of sucks. we use our sync lock here.
 	 */
 	spinlock_t			count_lock;
+	struct urb_list urbs;
+	atomic_t lost_pixels; /* 1 = a render op failed. Need screen refresh */
 
 	/*
 	 * bulk out interface
